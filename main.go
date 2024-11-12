@@ -135,6 +135,7 @@ func registerRHSM(ctx *cli.Context) (string, error) {
 		password := ctx.String("password")
 		organization := ctx.String("organization")
 		activationKeys := ctx.StringSlice("activation-key")
+		contentTemplates := ctx.StringSlice("content-template")
 
 		if len(activationKeys) == 0 {
 			if username == "" {
@@ -172,9 +173,9 @@ func registerRHSM(ctx *cli.Context) (string, error) {
 		} else {
 			var orgs []string
 			if organization != "" {
-				_, err = registerUsernamePassword(username, password, organization, ctx.String("server"))
+				_, err = registerUsernamePassword(username, password, organization, contentTemplates, ctx.String("server"))
 			} else {
-				orgs, err = registerUsernamePassword(username, password, "", ctx.String("server"))
+				orgs, err = registerUsernamePassword(username, password, "", contentTemplates, ctx.String("server"))
 				/* When organization was not specified using CLI option --organization, and it is
 				   required, because user is member of more than one organization, then ask for
 				   the organization. */
@@ -209,7 +210,7 @@ func registerRHSM(ctx *cli.Context) (string, error) {
 					}
 
 					// Try to register once again with given organization
-					_, err = registerUsernamePassword(username, password, organization, ctx.String("server"))
+					_, err = registerUsernamePassword(username, password, organization, contentTemplates, ctx.String("server"))
 				}
 			}
 		}
@@ -231,19 +232,25 @@ func beforeConnectAction(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-
 	username := ctx.String("username")
 	password := ctx.String("password")
 	organization := ctx.String("organization")
 	activationKeys := ctx.StringSlice("activation-key")
+	contentTemplates := ctx.StringSlice("content-template")
 
-	if len(activationKeys) > 0 {
-		if username != "" {
-			return fmt.Errorf("--username and --activation-key can not be used together")
-		}
-		if organization == "" {
-			return fmt.Errorf("--organization is required, when --activation-key is used")
-		}
+	if username != "" && len(activationKeys) > 0 {
+		err := fmt.Errorf("--username and --activation-key can not be used together")
+		return cli.Exit(err, 1)
+	}
+
+	if len(activationKeys) > 0 && organization == "" {
+		err := fmt.Errorf("--organization is required, when --activation-key is used")
+		return cli.Exit(err, 1)
+	}
+
+	if len(contentTemplates) > 0 && organization == "" {
+		err := fmt.Errorf("--organization is required, when --content-template is used")
+		return cli.Exit(err, 1)
 	}
 
 	// When machine-readable format is used, then additional requirements have to be met
@@ -881,8 +888,13 @@ func main() {
 				},
 				&cli.StringSliceFlag{
 					Name:    "activation-key",
-					Usage:   "register with `KEY`",
+					Usage:   "register with `KEY`(s)",
 					Aliases: []string{"a"},
+				},
+				&cli.StringSliceFlag{
+					Name:    "content-template",
+					Usage:   "register with `CONTENT_TEMPLATE`(s)",
+					Aliases: []string{"c"},
 				},
 				&cli.StringFlag{
 					Name:   "server",
